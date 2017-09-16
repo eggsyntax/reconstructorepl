@@ -13,22 +13,25 @@ list of statements expressions, if it doesn't we return the symbol AS
 entered.Not guaranteed to work, but nice and simple.
 * The same strategy would work if we use a central registry instead of'q
 metadata.
+* Another version would override def and defn (maybe others) to include the
+source form
 * Better version in the long run appends each statement to history and maybe
 processes it as well, so it doesn't have to be recreated each time.
 * Note that we can cache the histories.
 * TODO don't add exception-throwing expressions to history
-* TODO allow defining multiple at once??
+* TODO allow defining multiple at once?
 "
 
-(comment
-  (require 'repl-exp-01.core :reload)
-  (in-ns 'repl-exp-01.core))
+;; Note: by 'defr' I mean 'def or defn'
+;;       by 'hx' I mean 'history'
 
-(comment
+(comment ; for pasting into saving-repl
   (def a 1)
-  (def b 2)
-  (defn f [n] (inc n))
-  (* (f b) 2))
+  (def b (* a a))
+  (defn f [n] (+ b n))
+  (* (f b) 2)
+  (defn g [n] (* a n))
+  )
 
 (comment
   ;; organized history looks like:
@@ -75,14 +78,6 @@ processes it as well, so it doesn't have to be recreated each time.
 
 (defn- prompt []
   (print "***>"))
-
-(defn saving-repl
-  "Run a REPL which stores expressions so that other fns can organize it
-  and build code from it."
-  []
-  (clear-history)
-  (main/repl :read read-with-save
-             :prompt prompt))
 
 (defn expr-type
   "Identify the sort of expression which s is"
@@ -148,8 +143,6 @@ processes it as well, so it doesn't have to be recreated each time.
 ;;   maintain a set of skippables.
 ;; - what else?
 
-;; ALSO this function probably wants to do an actual walk rather
-;; than this ad hoc`for`/`filter`.
 (defn needed-defrs
   "Return just the elements of defr which are symbols, & hence may
   need definitions. Ignore the first two elements of def , which are
@@ -158,12 +151,12 @@ processes it as well, so it doesn't have to be recreated each time.
   ([defr]
    (needed-defrs defr #{}))
   ([defr existing-params]
-   (print defr ":")
+   ;; (print defr ":")
    (let [typ (first defr)
          params (if (= typ 'defn)
                   (into existing-params (nth defr 2))
                   existing-params)
-         _ (println "params:" params)
+         ;; _ (println "params:" params)
          is-param? #(contains? params %)
          candidates (condp = typ
                       'def  (drop 2 defr)
@@ -175,8 +168,8 @@ processes it as well, so it doesn't have to be recreated each time.
       (remove nil?
               (flatten
                (for [el candidates]
-                 (do (println ">>" el (contains? params el))
-                     (println ">" el (is-param? el))
+                 (do #_(println ">>" el (contains? params el))
+                     #_(println ">" el (is-param? el))
                      (cond (and (symbol? el) (not (is-param? el))) el
                            (sequential? el) (needed-defrs el params))))))))))
 
@@ -222,3 +215,21 @@ processes it as well, so it doesn't have to be recreated each time.
    ((def y (inc x))
     ((def x 3)))
    "n undefined")
+
+(defn saving-repl
+  "Run a REPL which stores expressions so that other fns can organize it
+  and build code from it."
+  ([]
+   (clear-history)
+   (saving-repl :no-clear))
+  ([_]
+   (main/repl :read read-with-save
+              :prompt prompt)
+   (process-history)))
+
+#_((defn h [a b] (+ (f a) (g b)))
+   ((defn f [n] (+ b n))
+    ((def b (* a a))
+     ((def a 1))))
+   ((defn g [n] (* a n))
+    ((def a 1))))
