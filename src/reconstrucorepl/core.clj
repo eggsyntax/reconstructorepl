@@ -183,8 +183,9 @@ processes it as well, so it doesn't have to be recreated each time.
       (apply list
              sym-defr
              (remove nil?
-                     (for [subsym (needed-defrs sym-defr)]
-                       (build-code-for subsym)))))
+                     (apply concat
+                            (for [subsym (needed-defrs sym-defr)]
+                              (build-code-for subsym))))))
     ;; Not locally defined:
     (if (or (resolve sym) (special-symbol? sym))
       ;; if we can resolve it or it's a special form, it's defined elsewhere and
@@ -199,22 +200,7 @@ processes it as well, so it doesn't have to be recreated each time.
   sym from scratch."
   [sym]
   (let [def-tree (build-code-for sym)]
-    #_(clojure.walk/postwalk #(do (println %) (when-not (empty? %) %)) def-tree)
-    #_(clojure.walk/postwalk #(= (expr-type %) :defr) def-tree)
-    #_(pprint def-tree)
-    def-tree
-    ))
-
-#_[(defn f [n] (+ y n))
-   ([(def y (inc x))
-     ([(def x 3)
-       ()])]
-    "n undefined")]
-
-#_((defn f [n] (+ y n))
-   ((def y (inc x))
-    ((def x 3)))
-   "n undefined")
+    (reverse def-tree)))
 
 (defn saving-repl
   "Run a REPL which stores expressions so that other fns can organize it
@@ -226,10 +212,3 @@ processes it as well, so it doesn't have to be recreated each time.
    (main/repl :read read-with-save
               :prompt prompt)
    (process-history)))
-
-#_((defn h [a b] (+ (f a) (g b)))
-   ((defn f [n] (+ b n))
-    ((def b (* a a))
-     ((def a 1))))
-   ((defn g [n] (* a n))
-    ((def a 1))))
