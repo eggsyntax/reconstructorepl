@@ -6,9 +6,7 @@
 * Is there a form keyword?
 * Don't forget the resolve keyword.
 * Clear user history at Rebel startup.
-* It's conceivable that it's as simple as, if resolve resolves it, it's
-  legit.
-* Reconstructarepl
+* It's conceivable that it's as simple as, if resolve resolves it, it's legit.
 * Partial simplified solution: if we store the form as metadata, then we can
 just check to see whether that metadata exists, if it does, we prepended to our
 list of statements expressions, if it doesn't we return the symbol AS
@@ -18,19 +16,19 @@ metadata.
 * Better version in the long run appends each statement to history and maybe
 processes it as well, so it doesn't have to be recreated each time.
 * Note that we can cache the histories.
+* TODO don't add exception-throwing expressions to history
+* TODO allow defining multiple at once??
 "
 
 (comment
   (require 'repl-exp-01.core :reload)
-  (in-ns 'repl-exp-01.core)
-  )
+  (in-ns 'repl-exp-01.core))
 
 (comment
   (def a 1)
   (def b 2)
   (defn f [n] (inc n))
-  (* (f b) 2)
-  )
+  (* (f b) 2))
 
 (comment
   ;; organized history looks like:
@@ -38,9 +36,7 @@ processes it as well, so it doesn't have to be recreated each time.
            g (defn g [x] (+ x 18))}
    :def   {a (def a 3)
            b (def b 4)}
-   :other #{'(* (f b) 2)}
-   }
-  )
+   :other #{'(* (f b) 2)}})
 
 (defonce user-history (atom []))
 (defonce defr-history (atom {}))
@@ -64,9 +60,9 @@ processes it as well, so it doesn't have to be recreated each time.
 
 (defn clear-history [] (reset! user-history []))
 
-(defn saving-read
+(defn read-with-save
   "Like main/repl-read, except saves history in user-history.
-  `q` to exit"
+  `q` to exit (ctrl-d exits outer repl too)."
   [request-prompt request-exit]
   (or ({:line-start request-prompt :stream-end request-exit}
        (main/skip-whitespace *in*))
@@ -84,21 +80,24 @@ processes it as well, so it doesn't have to be recreated each time.
   "Run a REPL which stores expressions so that other fns can organize it
   and build code from it."
   []
-  (main/repl :read saving-read
+  (clear-history)
+  (main/repl :read read-with-save
              :prompt prompt))
 
-(defn grouper
+(defn expr-type
   "Identify the sort of expression which s is"
   [s]
-  (case (first s)
-    defn    :defr
-    def     :defr
-    require :reqr
+  (if (sequential? s)
+    (case (first s)
+      defn    :defr
+      def     :defr
+      require :reqr
+      :othr)
     :othr))
 
 ;; Option 1: group by 1st element. Good if I ultimately need more
 ;; than just def and defn
-;; (defn grouper
+;; (defn expr-type
 ;;   "Identify whether s is a def, a defn, or something else"
 ;;   [s]
 ;;   (cond
@@ -121,7 +120,7 @@ processes it as well, so it doesn't have to be recreated each time.
   [h]
   ;; Option 1
   (->> h
-       (group-by grouper))
+       (group-by expr-type))
   ;; Option 2
   #_(just-defrs h))
 
@@ -168,10 +167,47 @@ processes it as well, so it doesn't have to be recreated each time.
              (flatten
               (for [el candidates]
                 (cond (symbol? el) el
-                      (sequential? el) (needed-defrs el)
-                      )))))))
+                      (sequential? el) (needed-defrs el))))))))
 
 (defn build-code-for
+  "Build a tree of the form [current (children)] where children are the defrs
+  that must be performed before current."
   [sym]
-  (if-let [sym-defr (@defr-history sym)])
-  )
+  (if-let [sym-defr (@defr-history sym)]
+    (do
+      ;; #_(inspect sym-defr)
+      (apply list
+             sym-defr
+             (remove nil?
+                     (for [subsym (needed-defrs sym-defr)]
+                       (build-code-for subsym)))))
+    ;; Not locally defined:
+    (if (or (resolve sym) (special-symbol? sym))
+      ;; if we can resolve it or it's a special form, it's defined elsewhere and
+      ;; we can just ignore it.
+      nil ; alternate: return sym?
+      ;; Otherwise it's undefined.))
+      (str sym " undefined")
+      #_(throw (Exception. (str sym " is not defined!"))))))
+
+(defn define
+  "Return a sequence of statements which, run in order, will let you define
+  sym from scratch."
+  [sym]
+  (let [def-tree (build-code-for sym)]
+    #_(clojure.walk/postwalk #(do (println %) (when-not (empty? %) %)) def-tree)
+    #_(clojure.walk/postwalk #(= (expr-type %) :defr) def-tree)
+    #_(pprint def-tree)
+    def-tree
+    ))
+
+#_[(defn f [n] (+ y n))
+   ([(def y (inc x))
+     ([(def x 3)
+       ()])]
+    "n undefined")]
+
+#_((defn f [n] (+ y n))
+   ((def y (inc x))
+    ((def x 3)))
+   "n undefined")
