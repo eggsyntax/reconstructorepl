@@ -32,9 +32,9 @@ processes it as well, so it doesn't have to be recreated each time.
 
 (comment
   ;; organized history looks like:
-  {:defn  {f (defn f [x] (* x 2))
-           g (defn g [x] (+ x 18))}
-   :def   {a (def a 3)
+  {:defr  {f (defn f [x] (* x 2))
+           g (defn g [x] (+ x 18))
+           a (def a 3)
            b (def b 4)}
    :other #{'(* (f b) 2)}})
 
@@ -152,22 +152,33 @@ processes it as well, so it doesn't have to be recreated each time.
 ;; than this ad hoc`for`/`filter`.
 (defn needed-defrs
   "Return just the elements of defr which are symbols, & hence may
-  need definitions. Ignore the first two elements, which are
-  respectively def/defn and the name."
-  [defr]
-  (let [typ (first defr)
-        candidates (condp = typ
-                     'def  (drop 2 defr)
-                     ;; TODO need to identify parameter in defn
-                     'defn (drop 3 defr)
-                     defr)]
-    ;; (println candidates)
-    (distinct-last
-     (filter identity
-             (flatten
-              (for [el candidates]
-                (cond (symbol? el) el
-                      (sequential? el) (needed-defrs el))))))))
+  need definitions. Ignore the first two elements of def , which are
+  respectively 'def and the name. Ignore the first three elements of defn, which are
+  respectively 'defn, the name, and the parameters."
+  ([defr]
+   (needed-defrs defr #{}))
+  ([defr existing-params]
+   (print defr ":")
+   (let [typ (first defr)
+         params (if (= typ 'defn)
+                  (into existing-params (nth defr 2))
+                  existing-params)
+         _ (println "params:" params)
+         is-param? #(contains? params %)
+         candidates (condp = typ
+                      'def  (drop 2 defr)
+                      ;; TODO need to identify parameter in defn
+                      'defn (drop 3 defr)
+                      defr)]
+     ;; (println candidates)
+     (distinct-last
+      (remove nil?
+              (flatten
+               (for [el candidates]
+                 (do (println ">>" el (contains? params el))
+                     (println ">" el (is-param? el))
+                     (cond (and (symbol? el) (not (is-param? el))) el
+                           (sequential? el) (needed-defrs el params))))))))))
 
 (defn build-code-for
   "Build a tree of the form [current (children)] where children are the defrs
@@ -190,7 +201,7 @@ processes it as well, so it doesn't have to be recreated each time.
       (str sym " undefined")
       #_(throw (Exception. (str sym " is not defined!"))))))
 
-(defn define
+(defn build-defs
   "Return a sequence of statements which, run in order, will let you define
   sym from scratch."
   [sym]
