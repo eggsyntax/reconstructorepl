@@ -1,6 +1,6 @@
-(ns reconstrucorepl.core-test
+(ns reconstructorepl.core-test
   (:require [clojure.test :refer :all]
-            [reconstrucorepl.core :refer :all]))
+            [reconstructorepl.core :refer :all]))
 
 (deftest a-test
   (testing "FIXME, I fail."
