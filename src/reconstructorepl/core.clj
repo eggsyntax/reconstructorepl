@@ -30,8 +30,11 @@
 
 "
 
-;; TODO set a dynamic var to control whether forms are pulled from
-;; metadata or from a registry
+;; Set a dynamic var to control whether forms are pulled from metadata
+;; or from a registry
+;; TODO not yet used; first I want to set things up to add to form-storage
+;; after each read.
+(def ^:dynamic *form-storage* :registry)
 
 ;; Terms: by 'defr' I mean 'def or defn'
 ;;        by 'hx' I mean 'history'
@@ -45,16 +48,8 @@
   (defn h [a b] (+ (f a) (g b)))
   )
 
-(comment
-  ;; organized history looks like:
-  {:defr  {f (defn f [x] (* x 2))
-           g (defn g [x] (+ x 18))
-           a (def a 3)
-           b (def b 4)}
-   :other #{'(* (f b) 2)}})
-
-(defonce user-history (atom []))
-(defonce defr-history (atom {}))
+;; form-registry used only if *form-storage* is :registry
+(defonce form-registry (atom {}))
 
 (defn form
   "Given a symbol (typically passed quoted), returns the form which
@@ -63,38 +58,7 @@
   (or (:form (meta (resolve sym)))
       (clojure.repl/source-fn sym)))
 
-(defn add-to-history
-  "Does a 2-level merge -- adds the current def/defn to the map of them stored
-  in h"
-  [h [typ [name exp]]]
-  (let [exp-map (h typ)
-        updated-exp-map (merge exp-map {name exp})]
-    (merge h {typ updated-exp-map})))
-
-(defn defr-organizer [expr]
-  (let [name (second expr)]
-    [name expr]))
-
-(defn organize-defrs [h]
-  (let [defrs (:defr h)]
-    (into {}
-          (map defr-organizer defrs))))
-
-(defn clear-history [] (reset! user-history []))
-
-(defn read-with-save
-  "Like main/repl-read, except saves history in user-history.
-  `q` to exit (ctrl-d exits outer repl too)."
-  [request-prompt request-exit]
-  (or ({:line-start request-prompt :stream-end request-exit}
-       (main/skip-whitespace *in*))
-      (let [input (read {:read-cond :allow} *in*)]
-        (println input)
-        (if (= input 'q)
-          request-exit
-          (do (swap! user-history conj input)
-              (main/skip-if-eol *in*)
-              input)))))
+(defn clear-registry [] (reset! form-registry []))
 
 (defn prompt []
   (print "***> "))
@@ -106,47 +70,34 @@
     (case (first s)
       defn    :defr
       def     :defr
-      require :reqr
+      ;; require :reqr
       :othr)
     :othr))
 
-;; Option 1: group by 1st element. Good if I ultimately need more
-;; than just def and defn
-;; (defn expr-type
-;;   "Identify whether s is a def, a defn, or something else"
-;;   [s]
-;;   (cond
-;;     (contains? #{'def 'defn} (first s)) :defr
-;;     (= (first s) 'require) :require
-;;     :othr))
+(defn is-defr?
+  "Return just def and defn, ie the ones I might need as supporting
+  players."
+  [s]
+  (contains? #{'def 'defn} (first s)))
 
-;; ;; Option 2: just filter to the ones I want
-;; (defn is-defr?
-;;   "Return just def and defn, ie the ones I might need as supporting
-;;   players."
-;;   [s]
-;;   (contains? #{'def 'defn} (first s)))
-;;
-;; (defn just-defrs [coll]
-;;   (filter is-defr? coll))
+(defn add-to-registry [form]
+  (when (is-defr? form)
+    (let [name (second form)]
+      (swap! form-registry assoc name form))))
 
-(defn organize-history
-  "Examines history, and pulls out defs, defns, and requires."
-  [h]
-  ;; Option 1
-  (->> h
-       (group-by expr-type))
-  ;; Option 2
-  #_(just-defrs h))
-
-(defn process-history []
-  (let [org-hx (organize-history @user-history)
-        defr-hx (organize-defrs org-hx)]
-    ;; (println "org-hx " org-hx)
-    ;; (println "defr-hx" defr-hx)
-    (reset! defr-history defr-hx)))
-
-#_(sequential? typ)
+(defn read-with-save
+  "Like main/repl-read, except saves each def or defn in form-registry. `q` to
+  exit (ctrl-d exits outer repl too)."
+  [request-prompt request-exit]
+  (or ({:line-start request-prompt :stream-end request-exit}
+       (main/skip-whitespace *in*))
+      (let [input (read {:read-cond :allow} *in*)]
+        (println input)
+        (if (= input 'q)
+          request-exit
+          (do (add-to-registry input)
+              (main/skip-if-eol *in*)
+              input)))))
 
 (defn distinct-last
   "Just like `distinct` except that the *last* duplicated element
@@ -154,15 +105,11 @@
   [coll]
   (reverse (distinct (reverse coll))))
 
-;; TODO this is an experiment which maybe isn't going to work out.
-;; Stuff that it doesn't take into account:
-;; - parameters passed to a function are skippable
-;; - let, for, and anything with that binding structure. A var
-;;   defined in a let doesn't need to be found in the environment.
-;;   The RHS of the binding could be put into the env, or we could
-;;   maintain a set of skippables.
-;; - what else?
-
+;; TODO
+;; Not yet dealing with let, for, and anything with that binding structure. A
+;; var defined in a let doesn't need to be found in the environment. The RHS of
+;; the binding could be put into the env, or we could maintain a set of
+;; skippables.
 (defn needed-defrs
   "Return just the elements of defr which are symbols, & hence may
   need definitions. Ignore the first two elements of def , which are
@@ -191,18 +138,17 @@
 (declare build-code-for)
 
 (defn local-definition [sym]
-  (when-let [sym-defr (@defr-history sym)]
-    (conj
-     (apply concat ; Was removing nils from this, but maybe I don't need to?
-            (for [subsym (needed-defrs sym-defr)]
-              (build-code-for subsym)))
-     sym-defr)))
+  (conj
+   (apply concat ; Was removing nils from this, but maybe I don't need to?
+          (for [subsym (needed-defrs sym-defr)]
+            (build-code-for subsym)))
+   sym-defr))
 
 (defn build-code-for
     "Build a list containing current and all children where children are the defrs
   that must be performed before current."
     [sym]
-    (if-let [sym-defr (@defr-history sym)]
+  (if-let [sym-defr (@form-registry sym)]
       ;; Locally defined:
       (local-definition sym)
       ;; Not locally defined:
@@ -229,4 +175,5 @@
   ([_] ; bonus arity to skip clearing (for dev)
    (main/repl :read read-with-save
               :prompt prompt)
-   (process-history)))
+   ;; (process-history) ; no longer needed
+   ))
