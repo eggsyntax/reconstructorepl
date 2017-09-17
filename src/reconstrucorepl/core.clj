@@ -3,27 +3,26 @@
 
 "
 * Alternate strategy: Store form as metadata.
-* Is there a form keyword?
-* Don't forget the resolve keyword.
-* Clear user history at Rebel startup.
-* It's conceivable that it's as simple as, if resolve resolves it, it's legit.
+** ex: (alter-meta! (resolve 'f) assoc :source '(defn f [x] (inc x)))
+* Is there a form keyword? If not, could write one. Like source, but pulls it
+  from the metadata or registry (could fall back to source)
 * Partial simplified solution: if we store the form as metadata, then we can
-just check to see whether that metadata exists, if it does, we prepended to our
-list of statements expressions, if it doesn't we return the symbol AS
-entered.Not guaranteed to work, but nice and simple.
-* The same strategy would work if we use a central registry instead of'q
-metadata.
+  just check to see whether that metadata exists. If it does, we prepend it to
+  our list of expressions; if it doesn't we return the symbol as entered. Maybe
+  not guaranteed to work, but nice and simple.
+* The same strategy would work if we use a central registry instead of metadata.
 * Another version would override def and defn (maybe others) to include the
-source form
-* Better version in the long run appends each statement to history and maybe
-processes it as well, so it doesn't have to be recreated each time.
+  source form. That version wouldn't require a custom repl as long as you're
+  willing to inject the custom def or defn, or require/refer them.
+* Better version in the long run processes each expression as it's read, so it
+  doesn't have to be recreated each time. Could then get rid of all but one
+  registry (alhough there must be other things the history is good for)
 * Note that we can cache the histories.
 * TODO don't add exception-throwing expressions to history
-* TODO allow defining multiple at once?
 "
 
-;; Note: by 'defr' I mean 'def or defn'
-;;       by 'hx' I mean 'history'
+;; Terms: by 'defr' I mean 'def or defn'
+;;        by 'hx' I mean 'history'
 
 (comment ; for pasting into saving-repl
   (def a 1)
@@ -31,6 +30,7 @@ processes it as well, so it doesn't have to be recreated each time.
   (defn f [n] (+ b n))
   (* (f b) 2)
   (defn g [n] (* a n))
+  (defn h [a b] (+ (f a) (g b)))
   )
 
 (comment
@@ -70,6 +70,7 @@ processes it as well, so it doesn't have to be recreated each time.
   (or ({:line-start request-prompt :stream-end request-exit}
        (main/skip-whitespace *in*))
       (let [input (read {:read-cond :allow} *in*)]
+        (println input)
         (if (= input 'q)
           request-exit
           (do (swap! user-history conj input)
@@ -77,10 +78,10 @@ processes it as well, so it doesn't have to be recreated each time.
               input)))))
 
 (defn- prompt []
-  (print "***>"))
+  (print "***> "))
 
 (defn expr-type
-  "Identify the sort of expression which s is"
+  "Identify the sort of expression which s is. 'defr' means def or defn."
   [s]
   (if (sequential? s)
     (case (first s)
@@ -151,56 +152,48 @@ processes it as well, so it doesn't have to be recreated each time.
   ([defr]
    (needed-defrs defr #{}))
   ([defr existing-params]
-   ;; (print defr ":")
    (let [typ (first defr)
          params (if (= typ 'defn)
                   (into existing-params (nth defr 2))
+                  ;; else def, has no new params
                   existing-params)
-         ;; _ (println "params:" params)
          is-param? #(contains? params %)
          candidates (condp = typ
                       'def  (drop 2 defr)
-                      ;; TODO need to identify parameter in defn
                       'defn (drop 3 defr)
                       defr)]
-     ;; (println candidates)
      (distinct-last
       (remove nil?
               (flatten
                (for [el candidates]
-                 (do #_(println ">>" el (contains? params el))
-                     #_(println ">" el (is-param? el))
-                     (cond (and (symbol? el) (not (is-param? el))) el
-                           (sequential? el) (needed-defrs el params))))))))))
+                 (cond (and (symbol? el) (not (is-param? el))) el
+                       (sequential? el) (needed-defrs el params)))))))))
 
 (defn build-code-for
-  "Build a tree of the form [current (children)] where children are the defrs
+  "Build a list containing current and all children where children are the defrs
   that must be performed before current."
   [sym]
   (if-let [sym-defr (@defr-history sym)]
-    (do
-      ;; #_(inspect sym-defr)
-      (apply list
-             sym-defr
-             (remove nil?
-                     (apply concat
-                            (for [subsym (needed-defrs sym-defr)]
-                              (build-code-for subsym))))))
+    ;; Locally defined:
+    (conj
+     (apply concat ; Was removing nils from this, but maybe I don't need to?
+            (for [subsym (needed-defrs sym-defr)]
+              (build-code-for subsym)))
+     sym-defr)
     ;; Not locally defined:
     (if (or (resolve sym) (special-symbol? sym))
       ;; if we can resolve it or it's a special form, it's defined elsewhere and
       ;; we can just ignore it.
-      nil ; alternate: return sym?
-      ;; Otherwise it's undefined.))
-      (str sym " undefined")
-      #_(throw (Exception. (str sym " is not defined!"))))))
+      nil
+      ;; Otherwise it's undefined.
+      (throw (Exception. (str sym " is not defined."))))))
 
 (defn build-defs
   "Return a sequence of statements which, run in order, will let you define
   sym from scratch."
   [sym]
   (let [def-tree (build-code-for sym)]
-    (reverse def-tree)))
+    (distinct (reverse def-tree))))
 
 (defn saving-repl
   "Run a REPL which stores expressions so that other fns can organize it
@@ -208,7 +201,7 @@ processes it as well, so it doesn't have to be recreated each time.
   ([]
    (clear-history)
    (saving-repl :no-clear))
-  ([_]
+  ([_] ; bonus arity to skip clearing (for dev)
    (main/repl :read read-with-save
               :prompt prompt)
    (process-history)))
