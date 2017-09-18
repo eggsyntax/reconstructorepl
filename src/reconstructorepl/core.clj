@@ -48,17 +48,25 @@
   (defn h [a b] (+ (f a) (g b)))
   )
 
-;; form-registry used only if *form-storage* is :registry
 (defonce form-registry (atom {}))
+(assert (map? @form-registry))
+
+(defn local-form
+  "Given a quoted symbol, returns the *local* form which defined
+  it, if it can be found in the of the var's metadata."
+  [sym]
+  (if (= :registry *form-storage*)
+    (@form-registry sym)
+    (:form (meta (resolve sym)))))
 
 (defn form
-  "Given a symbol (typically passed quoted), returns the form which
-  defined it, if it can be found."
+  "Given a quoted symbol, returns the (local or referred) form
+  which defined it, if it can be found."
   [sym]
-  (or (:form (meta (resolve sym)))
+  (or (local-form sym)
       (clojure.repl/source-fn sym)))
 
-(defn clear-registry [] (reset! form-registry []))
+(defn clear-registry [] (reset! form-registry {}))
 
 (defn prompt []
   (print "***> "))
@@ -84,20 +92,6 @@
   (when (is-defr? form)
     (let [name (second form)]
       (swap! form-registry assoc name form))))
-
-(defn read-with-save
-  "Like main/repl-read, except saves each def or defn in form-registry. `q` to
-  exit (ctrl-d exits outer repl too)."
-  [request-prompt request-exit]
-  (or ({:line-start request-prompt :stream-end request-exit}
-       (main/skip-whitespace *in*))
-      (let [input (read {:read-cond :allow} *in*)]
-        (println input)
-        (if (= input 'q)
-          request-exit
-          (do (add-to-registry input)
-              (main/skip-if-eol *in*)
-              input)))))
 
 (defn distinct-last
   "Just like `distinct` except that the *last* duplicated element
@@ -137,43 +131,65 @@
 
 (declare build-code-for)
 
-(defn local-definition [sym]
+(defn local-definition [sym-defr]
   (conj
    (apply concat ; Was removing nils from this, but maybe I don't need to?
           (for [subsym (needed-defrs sym-defr)]
             (build-code-for subsym)))
    sym-defr))
 
+(defn get-form [sym]
+  (case *form-storage*
+    :registry (@form-registry sym)
+    :metadata (local-form sym)
+    (throw (IllegalStateException. "*form-storage* must be set to :registry or :metadata"))))
+
 (defn build-code-for
-    "Build a list containing current and all children where children are the defrs
+  "Build a list containing current and all children where children are the defrs
   that must be performed before current."
-    [sym]
-  (if-let [sym-defr (@form-registry sym)]
+  [sym]
+  (if-let [sym-defr (get-form sym)]
       ;; Locally defined:
-      (local-definition sym)
+    (local-definition sym-defr)
       ;; Not locally defined:
-      (if (or (resolve sym) (special-symbol? sym))
+    (if (or (resolve sym) (special-symbol? sym))
         ;; if we can resolve it or it's a special form, it's defined elsewhere and
         ;; we can just ignore it.
-        nil
+      nil
         ;; Otherwise it's undefined.
-        (throw (Exception. (str sym " is not defined."))))))
+      (throw (Exception. (str sym " is not defined."))))))
 
 (defn build-defs
   "Return a sequence of statements which, run in order, will let you define
   sym from scratch."
-  [sym]
+  [^clojure.lang.Symbol sym]
   (let [def-tree (build-code-for sym)]
     (distinct (reverse def-tree))))
+
+(defn read-with-save
+  "Like main/repl-read, except saves history in user-history. `q` to exit
+  (ctrl-d can't be used, as it may exit the outer repl too)."
+  [request-prompt request-exit]
+  (or ({:line-start request-prompt :stream-end request-exit}
+       (main/skip-whitespace *in*))
+      (let [input (read {:read-cond :allow} *in*)]
+        (println input)
+        (if (= input 'q)
+          request-exit
+          (do
+            (when (and (is-defr? input) (= :registry *form-storage*))
+              (add-to-registry input))
+            (main/skip-if-eol *in*)
+            input)))))
 
 (defn saving-repl
   "Run a REPL which stores expressions so that other fns can organize it
   and build code from it."
   ([]
-   (clear-history)
+   (clear-registry)
    (saving-repl :no-clear))
   ([_] ; bonus arity to skip clearing (for dev)
    (main/repl :read read-with-save
               :prompt prompt)
    ;; (process-history) ; no longer needed
-   ))
+))

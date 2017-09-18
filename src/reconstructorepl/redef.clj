@@ -4,7 +4,10 @@
   (:require [reconstructorepl.core :as r]
             [clojure.core :as c]))
 
-(defmacro def
+;; If we're using def' and defn', forms are stored in metadata.
+(alter-var-root (resolve `r/*form-storage*) (fn [& _] :metadata))
+
+(defmacro def'
   "Identical to `def`, except that it adds the defining form
   to the var's metadata."
   [& args]
