@@ -27,7 +27,9 @@
   changing it from an incorrect value to a correct value, and so other vars
   based on it should change as well. At some point I may consider making it
   possible to specify which behavior you prefer.
-
+* TODO refactor so that method of storing data (repl or metadata) is separate
+  from decision where to store the defining forms. Move REPL code into separate
+  namespace.
 "
 
 ;; Set a dynamic var to control whether forms are pulled from metadata
@@ -99,11 +101,6 @@
   [coll]
   (reverse (distinct (reverse coll))))
 
-;; TODO
-;; Not yet dealing with let, for, and anything with that binding structure. A
-;; var defined in a let doesn't need to be found in the environment. The RHS of
-;; the binding could be put into the env, or we could maintain a set of
-;; skippables.
 (defn needed-defrs
   "Return just the elements of defr which are symbols, & hence may
   need definitions. Ignore the first two elements of def , which are
@@ -113,14 +110,20 @@
    (needed-defrs defr #{}))
   ([defr existing-params]
    (let [typ (first defr)
-         params (if (= typ 'defn)
-                  (into existing-params (nth defr 2))
-                  ;; else def, has no new params
-                  existing-params)
+         ;; for/let/etc bindings are vectors of alternating lhs and rhs
+         each-lhs #(map first (partition 2 %))
+         is-binding-form? #(contains? #{'for 'let} %)
+         params (cond
+                  (= typ 'defn) (into existing-params (nth defr 2))
+                  (is-binding-form? typ) (into existing-params
+                                                (each-lhs (nth defr 1)))
+                  :else existing-params)
          is-param? #(contains? params %)
          candidates (condp = typ
                       'def  (drop 2 defr)
                       'defn (drop 3 defr)
+                      'for  (drop 2 defr)
+                      'let  (drop 2 defr)
                       defr)]
      (distinct-last
       (remove nil?
@@ -185,6 +188,7 @@
 (defn saving-repl
   "Run a REPL which stores expressions so that other fns can organize it
   and build code from it."
+  ;; TODO - offer ability to use a custom registry?
   ([]
    (clear-registry)
    (saving-repl :no-clear))
