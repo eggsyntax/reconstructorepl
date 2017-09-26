@@ -8,24 +8,21 @@ I do a lot of my coding in the REPL. Often after an extended session, in which I
 
 Reconstruct-o-REPL is an experiment in making that process trivially easy.
 
-
 ...
 
-Two strategies for causing defining forms to be stored: a custom REPL or custom def/defn.
+This approach can vary on (at least) two axes. First, there are two strategies I've come up with for causing defining forms to be stored: working in a custom REPL or using a custom variant of def/defn. Second, there are two places where the extra info to be stored: in a central registry or in var metadata.
 
-Two places to store the forms: a central registry or var metadata.
+Here are the two strategies I've implemented so far:
 
 0) For both strategies, start in an ordinary REPL.
 
-1) A REPL with a custom :read function (`reconstructorepl.core`). You can start the custom REPL via `(saving-repl)`. While (or after) using it, calling `(build-defs 'a)` (for some var `a` defined in the custom REPL) will print a complete, minimal, ordered sequence of statements which can be copy/pasted into your source file.
+1) A REPL with a custom :read function (`reconstructorepl.core`), which stores the form in a registry. You can start the custom REPL via `(saving-repl)`. While (or after) using it, calling `(build-defs 'a)` (for some var `a` defined in the custom REPL) will print a complete, minimal, ordered sequence of statements which can be copy/pasted into your source file.
 
-2) (`reconstructorepl.redef`): within the ordinary REPL, just call `def'` and `defn'` in place of ordinary def and defn. At any time, call `(build-defs 'a)` as before.
+2) Custom def and defn, storing the form in the var metadata: within the ordinary REPL, just call `reconstructorepl.redef/def'` and `reconstructorepl.redef/defn'` in place of ordinary def and defn. At any time, call `(build-defs 'a)` as before.
 
 
 
 ## License
-
-Copyright © 2017 FIXME
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
