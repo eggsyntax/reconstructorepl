@@ -6,6 +6,7 @@ An in-progress experiment in making it trivial to move a complete, minimal tree 
 
 ## Quick start v1
 
+```
 [21:14]reconstructorepl> lein repl
 
 user=> (require '[reconstructorepl.core :as rc])
@@ -31,6 +32,7 @@ user=> (f 4) ; vars we defined are still available after we exit the inner repl
 12
 user=> (rc/build-defs 'd) ; and `build-defs` still works fine
 ((def b 2) (def a 1) (def d (+ a b)))
+```
 
 ## Quick start v2 [NOTE: DO NOT USE AT THE MOMENT]
 
