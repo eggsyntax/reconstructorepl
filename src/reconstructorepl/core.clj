@@ -2,6 +2,8 @@
   (:require [clojure.main :as main]))
 
 "
+Notes to self:
+
 * Alternate strategy: Store form as metadata.
 ** ex: (alter-meta! (resolve 'f) assoc :source '(defn f [x] (inc x)))
 * Is there a form keyword? If not, could write one. Like source, but pulls it
@@ -34,8 +36,6 @@
 
 ;; Set a dynamic var to control whether forms are pulled from metadata
 ;; or from a registry
-;; TODO not yet used; first I want to set things up to add to form-storage
-;; after each read.
 (def ^:dynamic *form-storage* :registry)
 
 ;; Terms: by 'defr' I mean 'def or defn'
@@ -176,7 +176,7 @@
   (or ({:line-start request-prompt :stream-end request-exit}
        (main/skip-whitespace *in*))
       (let [input (read {:read-cond :allow} *in*)]
-        (println input)
+        ;; (println input)
         (if (= input 'q)
           request-exit
           (do

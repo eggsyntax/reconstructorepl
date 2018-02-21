@@ -15,8 +15,9 @@
         form# `(def ~@args)]
     ;; (println name# ":" form#)
     ;; (println (rest args))
-    ;; TODO ensure correct return type
-    `(alter-meta! (def ~name# ~@(rest args)) assoc :form '~form#)))
+    `(let [new-f# (def ~name# ~@(rest args))]
+       (alter-meta! new-f# assoc :form '~form#)
+       new-f#)))
 
 
 (defmacro defn'
