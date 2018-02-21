@@ -102,9 +102,9 @@ Notes to self:
   (reverse (distinct (reverse coll))))
 
 (defn needed-defrs
-  "Return just the elements of defr which are symbols, & hence may
-  need definitions. Ignore the first two elements of def , which are
-  respectively 'def and the name. Ignore the first three elements of defn, which are
+  "Return just the elements of defr which are symbols, & hence may need
+  definitions. Ignore the first two elements of def , which are respectively
+  'def and the name. Ignore the first three elements of defn, which are
   respectively 'defn, the name, and the parameters."
   ([defr]
    (needed-defrs defr #{}))
@@ -163,8 +163,8 @@ Notes to self:
       (throw (Exception. (str sym " is not defined."))))))
 
 (defn build-defs
-  "Return a sequence of statements which, run in order, will let you define
-  sym from scratch."
+  "Given the symbol for a var (eg `'foo`), return a sequence of statements
+  which, run in order, will let you define sym from scratch."
   [^clojure.lang.Symbol sym]
   (let [def-tree (build-code-for sym)]
     (distinct (reverse def-tree))))

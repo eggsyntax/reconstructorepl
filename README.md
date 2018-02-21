@@ -53,7 +53,6 @@ Here are the two strategies I've implemented so far:
 2) Custom def and defn, storing the form in the var metadata: within the ordinary REPL, just call `reconstructorepl.redef/def'` and `reconstructorepl.redef/defn'` in place of ordinary def and defn. At any time, call `(build-defs 'a)` as before.
 
 
-
 ## License
 
 Distributed under the Eclipse Public License either version 1.0 or (at
