@@ -34,7 +34,7 @@ user=> (rc/build-defs 'd) ; and `build-defs` still works fine
 
 ## Quick start v2
 
-If you don't want to use the inner repl, just replace `def` and `defn` in your ordinary repl with `reconstructorepl.redef/def'` and `reconstructorepl.redef/defn'`, and you can call `reconstructorepl.core/build-defs` as above.
+If you don't want to use a special inner repl, just replace `def` and `defn` in your ordinary repl with `reconstructorepl.redef/def'` and `reconstructorepl.redef/defn'`, and you can call `reconstructorepl.core/build-defs` as above:
 
 ```
 [21:14]reconstructorepl> lein repl
@@ -52,7 +52,8 @@ user> (def' c (+ a b))
 #'user/c
 user> (defn' f [t] (* t (inc c)))
 #'user/f
-user> ;; build-defs prints a complete, minimal, ordered sequence of definitions which can be copy/pasted into your source file.
+user> ;; build-defs prints a complete, minimal, ordered sequence of definitions
+user> ;; which can be copy/pasted into your source file.
 user> ;; `b` depends on `a`
 user> (rc/build-defs 'b)
 ((def a 1) (def b (inc a)))
