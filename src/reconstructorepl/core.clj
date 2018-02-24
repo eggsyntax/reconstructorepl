@@ -4,21 +4,15 @@
 "
 Notes to self:
 
-* Alternate strategy: Store form as metadata.
-** ex: (alter-meta! (resolve 'f) assoc :source '(defn f [x] (inc x)))
+* TODO refactor so that method of storing data (repl or metadata) is separate
+  from decision where to store the defining forms. Move REPL code into separate
+  namespace.
 * Is there a form keyword? If not, could write one. Like source, but pulls it
   from the metadata or registry (could fall back to source)
 * Partial simplified solution: if we store the form as metadata, then we can
   just check to see whether that metadata exists. If it does, we prepend it to
   our list of expressions; if it doesn't we return the symbol as entered. Maybe
   not guaranteed to work, but nice and simple.
-* The same strategy would work if we use a central registry instead of metadata.
-* Another version would override def and defn (maybe others) to include the
-  source form. That version wouldn't require a custom repl as long as you're
-  willing to inject the custom def or defn, or require/refer them.
-* Better version in the long run processes each expression as it's read, so it
-  doesn't have to be recreated each time. Could then get rid of all but one
-  registry (alhough there must be other things the history is good for)
 * Note that we can cache the histories.
 * TODO don't add exception-throwing expressions to history
 * Known failure mode: if you def a as 1, then def b as (inc a), then redefine a
@@ -29,9 +23,6 @@ Notes to self:
   changing it from an incorrect value to a correct value, and so other vars
   based on it should change as well. At some point I may consider making it
   possible to specify which behavior you prefer.
-* TODO refactor so that method of storing data (repl or metadata) is separate
-  from decision where to store the defining forms. Move REPL code into separate
-  namespace.
 "
 
 ;; Set a dynamic var to control whether forms are pulled from metadata
@@ -60,13 +51,6 @@ Notes to self:
   (if (= :registry *form-storage*)
     (@form-registry sym)
     (:form (meta (resolve sym)))))
-
-(defn form
-  "Given a quoted symbol, returns the (local or referred) form
-  which defined it, if it can be found."
-  [sym]
-  (or (local-form sym)
-      (clojure.repl/source-fn sym)))
 
 (defn clear-registry [] (reset! form-registry {}))
 

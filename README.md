@@ -2,8 +2,6 @@
 
 An in-progress experiment in making it trivial to move a complete, minimal tree of interdependent expressions from the REPL to a source file.
 
-[NOTE: use v1, not v2 -- there appears to be a bug in `reconstructorepl.redef/defn'` that I haven't had a chance to track down yet. -egg, Feb 20, 2018]
-
 ## Quick start v1
 
 ```
@@ -34,7 +32,7 @@ user=> (rc/build-defs 'd) ; and `build-defs` still works fine
 ((def b 2) (def a 1) (def d (+ a b)))
 ```
 
-## Quick start v2 [NOTE: DO NOT USE AT THE MOMENT]
+## Quick start v2
 
 If you don't want to use the inner repl, just replace `def` and `defn` in your ordinary repl with `reconstructorepl.redef/def'` and `reconstructorepl.redef/defn'`, and you can call `reconstructorepl.core/build-defs` as above.
 
@@ -44,7 +42,7 @@ I do a lot of my coding in the REPL. Often after an extended session, in which I
 
 Reconstruct-o-REPL is an experiment in making that process trivially easy.
 
-The approach can vary on (at least) two axes. First, there are two strategies I've come up with for causing defining forms to be stored: working in a custom REPL or using a custom variant of def/defn. Second, there are two places where the extra info to be stored: in a central registry or in var metadata. See above for details on how to use each strategy. As it happens, the custom repl uses a registry, and the the special def' and defn' use var metadata, but you could swap those and everything would work fine -- the two axes are completely independent.
+The approach can vary on (at least) two axes. First, there are two strategies I've come up with for causing defining forms to be stored: working in a custom REPL or using a custom variant of def/defn. Second, there are two places where the extra info to be stored: in a central registry or in var metadata. See above for details on how to use each strategy. As it happens, I've written it so that the custom repl uses a registry, and the the special def' and defn' use var metadata, but you could swap those and everything would work fine -- the two axes are completely independent.
 
 Here are the two strategies I've implemented so far:
 
@@ -54,6 +52,7 @@ Here are the two strategies I've implemented so far:
 
 2) Custom def and defn, storing the form in the var metadata: within the ordinary REPL, just call `reconstructorepl.redef/def'` and `reconstructorepl.redef/defn'` in place of ordinary def and defn. At any time, call `(build-defs 'a)` as before.
 
+NOTE: requiring reconstructorepl.core switches storage to registry; requiring reconstructorepl.redef switches it to metadata. Currently, whichever namespace you've required most recently dictates whether you should use the custom repl or the custom def/defn. This is kind of dumb, and at some point I'll try to get around to approaching it differently, or ideally making either approach work with either storage strategy.
 
 ## License
 
