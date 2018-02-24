@@ -14,9 +14,10 @@
   (let [name# (first args)
         form# `(def ~@args)]
     ;; (println name# ":" form#)
-    ;; (println (rest args))
-    ;; TODO ensure correct return type
-    `(alter-meta! (def ~name# ~@(rest args)) assoc :form '~form#)))
+    ;; (println "f:" form#)
+    `(let [new-f# (def ~name# ~@(rest args))]
+       (alter-meta! new-f# assoc :form '~form#)
+       new-f#)))
 
 
 (defmacro defn'
@@ -24,7 +25,9 @@
   to the var's metadata."
   [& args]
   (let [name# (first args)
-        form# `(defn ~@args)]
+        ;; We have to handle form# differently than we did in def', because def
+        ;; is a special form, but defn is a macro
+        form# (cons 'defn args)]
     ;; (println "n:" name#)
     ;; (println "f:" form#)
     ;; TODO handle docstrings?
