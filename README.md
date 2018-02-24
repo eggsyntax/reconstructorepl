@@ -20,7 +20,7 @@ user=> (rc/saving-repl)
 #'user/d
 ***> (defn f [x] (* x d)**
 #'user/f
-**> ; build-def prints a complete, minimal, ordered sequence of definitions which can be copy/pasted into your source file.
+****> ;; build-defs prints a complete, minimal, ordered sequence of definitions which can be copy/pasted into your source file.
 ***> (rc/build-defs 'c) ; `c` stands alone; no other defs are needed.
 ((def c 3))
 ***> (rc/build-defs 'f) ; whereas `f` depends on `a`, `b`, and `d`.
@@ -35,6 +35,31 @@ user=> (rc/build-defs 'd) ; and `build-defs` still works fine
 ## Quick start v2
 
 If you don't want to use the inner repl, just replace `def` and `defn` in your ordinary repl with `reconstructorepl.redef/def'` and `reconstructorepl.redef/defn'`, and you can call `reconstructorepl.core/build-defs` as above.
+
+```
+[21:14]reconstructorepl> lein repl
+
+user> (require '[reconstructorepl.core :as rc])
+nil
+user> ;; Note that the order you require these nss in is (currently, and unfortunately) important
+user> (require '[reconstructorepl.redef :as rr :refer [def' defn']])
+nil
+user> (def' a 1)
+#'user/a
+user> (def' b (inc a))
+#'user/b
+user> (def' c (+ a b))
+#'user/c
+user> (defn' f [t] (* t (inc c)))
+#'user/f
+user> ;; build-defs prints a complete, minimal, ordered sequence of definitions which can be copy/pasted into your source file.
+user> ;; `b` depends on `a`
+user> (rc/build-defs 'b)
+((def a 1) (def b (inc a)))
+user> ;; whereas `f` depends on `a`, `b`, and `c`
+user> (rc/build-defs 'f)
+((def a 1) (def b (inc a)) (def c (+ a b)) (defn f [t] (* t (inc c))))
+```
 
 ## Rationale
 
