@@ -4,7 +4,7 @@ An in-progress experiment in making it trivial to move a complete, minimal tree 
 
 ## Quick start v1
 
-```
+```clojure
 [21:14]reconstructorepl> lein repl
 
 user=> (require '[reconstructorepl.core :as rc])
@@ -36,7 +36,7 @@ user=> (rc/build-defs 'd) ; and `build-defs` still works fine
 
 If you don't want to use a special inner repl, just replace `def` and `defn` in your ordinary repl with `reconstructorepl.redef/def'` and `reconstructorepl.redef/defn'`, and you can call `reconstructorepl.core/build-defs` as above:
 
-```
+```clojure
 [21:14]reconstructorepl> lein repl
 
 user> (require '[reconstructorepl.core :as rc])
