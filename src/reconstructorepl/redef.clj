@@ -19,6 +19,11 @@
     `(alter-meta! (def ~name# ~@(rest args)) assoc :form '~form#)))
 
 
+;; TODO not working? throwing stack overflow on
+;; (def m 3)
+;; (def n (inc m))
+;; (defn' h [c] (* c n))
+
 (defmacro defn'
   "Identical to `defn`, except that it adds the defining form
   to the var's metadata."
